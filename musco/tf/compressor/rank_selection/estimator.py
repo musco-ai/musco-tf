@@ -10,7 +10,7 @@ def weaken_rank(rank, extreme_rank, k):
         wrank = rank
     elif extreme_rank == 0:
         wrank = rank
-        print("EVBMF returned 0 rank.")
+        # print("EVBMF returned 0 rank.")
     else:
         wrank = int(rank - k * (rank - extreme_rank))
 
@@ -25,8 +25,17 @@ def estimate_vbmf_ranks(weights, k=1):
     if len(weights.shape) > 2:
         unfold_0 = tl.base.unfold(weights, 0)
         unfold_1 = tl.base.unfold(weights, 1)
-        _, diag_0, _, _ = vbmf.vbmf(unfold_0)
-        _, diag_1, _, _ = vbmf.vbmf(unfold_1)
+
+        try:
+            _, diag_0, _, _ = vbmf.evbmf(unfold_0)
+        except:
+            _, diag_0, _, _ = vbmf.vbmf(unfold_0)
+
+        try:
+            _, diag_1, _, _ = vbmf.evbmf(unfold_1)
+        except:
+            _, diag_1, _, _ = vbmf.evbmf(unfold_1)
+
         ranks = [diag_0.shape[0], diag_1.shape[1]]
 
         ranks_weak = [weaken_rank(unfold_0.shape[0], ranks[0], k),
@@ -37,9 +46,15 @@ def estimate_vbmf_ranks(weights, k=1):
         unfold = unfold.numpy()
 
         try:
-            _, diag, _, _ = vbmf.vbmf(unfold)
+            _, diag, _, _ = vbmf.evbmf(unfold)
         except:
-            _, diag, _, _ = vbmf.vbmf(unfold.T)
+            try:
+                _, diag, _, _ = vbmf.evbmf(unfold.T)
+            except:
+                try:
+                    _, diag, _, _ = vbmf.vbmf(unfold)
+                except:
+                    _, diag, _, _ = vbmf.vbmf(unfold.T)
 
         rank = diag.shape[0]
         ranks_weak = weaken_rank(min(unfold.shape), rank, k)

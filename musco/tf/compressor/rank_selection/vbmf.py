@@ -80,7 +80,7 @@ def vbmf(Y, cacb=1024, sigma2=None, H=None):
         sigma2_opt = minimize_scalar(vb_sigma2, args=(L, M, cacb, s, residual), bounds=[lower_bound, upper_bound],
                                      method="Bounded")
         sigma2 = sigma2_opt.x
-        print("Estimated: ", sigma2)
+        # print("Estimated: ", sigma2)
 
     # Threshold gamma term.
     # Formula above (21) from [1].
@@ -231,7 +231,7 @@ def evbmf(Y, sigma2=None, H=None):
         sigma2_opt = minimize_scalar(evb_sigma2, args=(L, M, s, residual, xubar), bounds=[lower_bound, upper_bound],
                                      method="Bounded")
         sigma2 = sigma2_opt.x
-        print("Estimated: ", sigma2)
+        # print("Estimated: ", sigma2)
 
     # Threshold gamma term.
     threshold = np.sqrt(M * sigma2 * (1 + tauubar) * (1 + alpha / tauubar))

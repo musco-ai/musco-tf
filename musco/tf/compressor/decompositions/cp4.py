@@ -2,13 +2,12 @@
 
 import numpy as np
 from tensorflow import keras
-from tensorflow.keras import layers
 from sktensor import dtensor, cp_als
 from musco.tf.compressor.layers.group_conv_2d import GroupConv2D
 from musco.tf.compressor.decompositions.constructor import construct_compressor
 from musco.tf.compressor.decompositions.cpd import recompress_ncpd_tensor
 from musco.tf.compressor.rank_selection.estimator import estimate_rank_for_compression_rate
-from musco.tf.compressor.help.utils import del_keys, to_tf_kernel_order, to_pytorch_kernel_order
+from musco.tf.compressor.common.utils import del_keys, to_tf_kernel_order, to_pytorch_kernel_order
 from musco.tf.compressor.exceptions.compression_error import CompressionError
 
 
@@ -35,7 +34,7 @@ def get_conv_params(layer):
         padding = conf_2["padding"]
         strides = (conf_2["strides"][0], conf_3["strides"][1])
         activation = conf_3["activation"]
-    elif isinstance(layer, layers.Conv2D):
+    elif isinstance(layer, keras.layers.Conv2D):
         cin = layer.input_shape[-1] if layer.data_format == "channels_last" else layer.input_shape[0]
         cout = layer.output_shape[-1] if layer.data_format == "channels_last" else layer.output_shape[0]
         layer_conf = layer.get_config()
@@ -83,7 +82,7 @@ def get_weights_and_bias(layer):
         w_w = w_w.reshape((w_w.shape[0], w_w.shape[3])).T
         w_cout = w_cout.reshape(w_cout.shape[:2])
         weights = [w_cout, w_cin, w_h, w_w]
-    elif isinstance(layer, layers.Conv2D):
+    elif isinstance(layer, keras.layers.Conv2D):
         weights, bias = layer.get_weights()
         weights = to_pytorch_kernel_order(weights)
 
@@ -112,7 +111,7 @@ def get_cp_factors(layer, rank, cin, cout, kernel_size, **kwargs):
     if isinstance(layer, keras.Sequential):
         w_cout, w_cin, w_h, w_w = recompress_ncpd_tensor(weights, new_rank=rank, max_cycle=500, return_fit=False,
                                                          tensor_format="cpd")
-    elif isinstance(layer, layers.Conv2D):
+    elif isinstance(layer, keras.layers.Conv2D):
         P, _, _ = cp_als(dtensor(weights), rank, init="random")
         w_cin, w_cout, w_h, w_w = extract_weights_tensors(P)
 
@@ -135,7 +134,7 @@ def get_cp_factors(layer, rank, cin, cout, kernel_size, **kwargs):
 
 
 def get_layers_params_for_factors(cout, rank, kernel_size, padding, strides, batch_input_shape, activation, **kwargs):
-    new_layers = [layers.Conv2D, GroupConv2D, GroupConv2D, layers.Conv2D]
+    new_layers = [keras.layers.Conv2D, GroupConv2D, GroupConv2D, keras.layers.Conv2D]
     params = [dict(kernel_size=(1, 1), filters=rank, padding="same"),
               dict(rank=rank, n_group=rank, kernel_size=(kernel_size[0], 1), padding=padding, strides=(strides[0], 1),
                    use_bias=False),
@@ -154,7 +153,7 @@ def get_config(layer, copy_conf):
 
     if isinstance(layer, keras.Sequential):
         confs = [l.get_config() for l in layer.layers]
-    elif isinstance(layer, layers.Conv2D):
+    elif isinstance(layer, keras.layers.Conv2D):
         if copy_conf:
             confs = [layer.get_config()] * 4
         else:
@@ -175,4 +174,4 @@ def get_rank(layer, rank, cin, cout, kernel_size, **kwargs):
 
 
 get_cp4_seq = construct_compressor(get_conv_params, get_rank, get_cp_factors, get_layers_params_for_factors, get_config,
-                                   (layers.Conv2D, keras.Sequential))
+                                   (keras.layers.Conv2D, keras.Sequential))

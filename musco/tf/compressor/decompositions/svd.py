@@ -3,8 +3,7 @@
 import numpy as np
 from musco.tf.compressor.decompositions.constructor import construct_compressor
 from tensorflow import keras
-from tensorflow.keras import layers
-from musco.tf.compressor.help.utils import del_keys
+from musco.tf.compressor.common.utils import del_keys
 
 
 def get_params(layer):
@@ -39,7 +38,7 @@ def get_svd_factors(layer, rank, **kwargs):
         u, s, v_adj = get_truncated_svd(U, rank=rank)
 
         return [u, np.dot(np.dot(s, v_adj), SV_adj)], [None, SV_adj_bias]
-    elif isinstance(layer, layers.Dense):
+    elif isinstance(layer, keras.layers.Dense):
         weights, bias = layer.get_weights()
 
         # If rank is None take the original rank of weights.
@@ -49,7 +48,7 @@ def get_svd_factors(layer, rank, **kwargs):
 
 
 def get_layers_params_for_factors(rank, weights_shape, **kwargs):
-    return [layers.Dense, layers.Dense], [dict(units=rank), dict(units=weights_shape[-1])]
+    return [keras.layers.Dense, keras.layers.Dense], [dict(units=rank), dict(units=weights_shape[-1])]
 
 
 def get_config(layer, copy_conf):
@@ -62,7 +61,7 @@ def get_config(layer, copy_conf):
     if isinstance(layer, keras.Sequential):
         for l in layer.layers:
             confs.append(del_keys(l.get_config(), redundant_keys))
-    elif isinstance(layer, layers.Dense):
+    elif isinstance(layer, keras.layers.Dense):
         # Get conf of the source layer.
         conf = {} if not copy_conf else del_keys(layer.get_config(), redundant_keys)
 
@@ -73,4 +72,4 @@ def get_config(layer, copy_conf):
 
 
 get_svd_seq = construct_compressor(get_params, None, get_svd_factors, get_layers_params_for_factors, get_config,
-                                   (layers.Dense, keras.Sequential))
+                                   (keras.layers.Dense, keras.Sequential))

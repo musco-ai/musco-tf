@@ -1,14 +1,16 @@
 # This module contains functions for compressing fully-connected and conv layers.
 
+import numpy as np
 import tensorflow as tf
 from absl import logging
 from tensorflow.keras.models import Model
 from tensorflow import keras
-from tensorflow.keras import layers
 from musco.tf.compressor.decompositions.cp3 import get_cp3_seq
 from musco.tf.compressor.decompositions.cp4 import get_cp4_seq
 from musco.tf.compressor.decompositions.svd import get_svd_seq
 from musco.tf.compressor.decompositions.tucker2 import get_tucker2_seq
+from musco.tf.compressor.exceptions.compression_error import CompressionError
+from tqdm import tqdm
 
 
 def compress_seq(model, decompose_info, optimize_rank=False, vbmf=True, vbmf_weaken_factor=0.8):
@@ -40,10 +42,11 @@ def compress_seq(model, decompose_info, optimize_rank=False, vbmf=True, vbmf_wea
     x = model.input
     new_model = keras.Sequential([])
 
-    for idx, layer in enumerate(model.layers):
+    for idx, layer in enumerate(tqdm(model.layers)):
         if layer.name not in decompose_info:
             x = layer(x)
             new_model.add(layer)
+
             continue
 
         decompose, decomp_rank = decompose_info[layer.name]
@@ -78,15 +81,19 @@ def compress_seq(model, decompose_info, optimize_rank=False, vbmf=True, vbmf_wea
     return new_model
 
 
-def insert_layer_nonseq(model, layer_regexs):
+def insert_layer_noseq(model, layer_regexs):
     # Auxiliary dictionary to describe the network graph.
     network_dict = dict(input_layers_of={}, new_output_tensor_of={})
     current_session = tf.keras.backend.get_session()
 
     # Set the input layers of each layer.
-
     for layer in model.layers:
-        for node in layer.outbound_nodes:
+        try:
+            outbound_nodes = layer.outbound_nodes
+        except:
+            outbound_nodes = layer._outbound_nodes
+
+        for node in outbound_nodes:
             layer_name = node.outbound_layer.name
 
             if layer_name not in network_dict["input_layers_of"]:
@@ -104,8 +111,10 @@ def insert_layer_nonseq(model, layer_regexs):
                                                model.layers[0].get_config(),
                                                None)})
     layers_order = [model.layers[0].name]
-    for layer in model.layers[1:]:
+
+    for layer in tqdm(model.layers[1:], desc="{Insert layers}"):
         added_layer = None
+
         # Determine input tensors.
         layer_input = [network_dict["new_output_tensor_of"][layer_aux]
                        for layer_aux in network_dict["input_layers_of"][layer.name]]
@@ -122,7 +131,7 @@ def insert_layer_nonseq(model, layer_regexs):
 
             changed = True
             x = new_layer(layer_input)
-            print("Layer {} replace layer {}".format(new_layer.name, layer.name))
+            # print("Layer {} replace layer {}".format(new_layer.name, layer.name))
             added_layer = new_layer
             break
 
@@ -145,7 +154,7 @@ def insert_layer_nonseq(model, layer_regexs):
     new_model_input = input_constructor.from_config(input_conf)
     network_dict["new_output_tensor_of"] = {new_model_input.name: new_model_input.input}
 
-    for layer_name in layers_order[1:]:
+    for layer_name in tqdm(layers_order[1:], desc="{Reconstruction}"):
         # Determine input tensors.
         l_constuctor, l_conf, l_weights = conenctions[layer_name]
         layer = l_constuctor.from_config(l_conf)
@@ -176,23 +185,79 @@ def compress_noseq(model, decompose_info, optimize_rank=False, vbmf=True, vbmf_w
 
         decompose, decomp_rank = decompose_info[layer.name]
 
-        if decompose.lower() == "svd":
-            layer_regexs[layer.name] = get_svd_seq(layer, rank=decomp_rank)
-        elif decompose.lower() == "cp3":
-            layer_regexs[layer.name] = get_cp3_seq(layer,
-                                                   rank=decomp_rank,
-                                                   optimize_rank=optimize_rank)
-        elif decompose.lower() == "cp4":
-            layer_regexs[layer.name] = get_cp4_seq(layer,
-                                                   rank=decomp_rank,
-                                                   optimize_rank=optimize_rank)
-        elif decompose.lower() == "tucker2":
-            layer_regexs[layer.name] = get_tucker2_seq(layer,
+        try:
+            if decompose.lower() == "svd":
+                layer_regexs[layer.name] = get_svd_seq(layer, rank=decomp_rank)
+            elif decompose.lower() == "cp3":
+                layer_regexs[layer.name] = get_cp3_seq(layer,
                                                        rank=decomp_rank,
-                                                       optimize_rank=optimize_rank,
-                                                       vbmf=vbmf,
-                                                       vbmf_weaken_factor=vbmf_weaken_factor)
+                                                       optimize_rank=optimize_rank)
+            elif decompose.lower() == "cp4":
+                layer_regexs[layer.name] = get_cp4_seq(layer,
+                                                       rank=decomp_rank,
+                                                       optimize_rank=optimize_rank)
+            elif decompose.lower() == "tucker2":
+                layer_regexs[layer.name] = get_tucker2_seq(layer,
+                                                           rank=decomp_rank,
+                                                           optimize_rank=optimize_rank,
+                                                           vbmf=vbmf,
+                                                           vbmf_weaken_factor=vbmf_weaken_factor)
+        except ValueError:
+            continue
 
-    new_model = insert_layer_nonseq(new_model, layer_regexs)
+    new_model = insert_layer_noseq(new_model, layer_regexs)
 
     return new_model
+
+
+class CompressorVBMF:
+    def __init__(self, model, number=5, conv2d="tucker2", vbmf_weaken_factor=0.8):
+        self.model = model
+        self.layers = []
+        self.iteration = 0
+        self.number = number
+        self.vbmf_weaken_factor = vbmf_weaken_factor
+
+        if conv2d == "tucker2":
+            self.conv2d = (conv2d, (None, None))
+        elif conv2d == "cp3" or conv2d == "cp4":
+            self.conv2d = (conv2d, None)
+        else:
+            raise CompressionError("Wrong value for conv2d, use one of [\"tucker2\", \"cp4\", \"cp3\"]")
+
+        for layer in self.model.layers:
+            if isinstance(layer, keras.layers.Conv2D):
+                self.layers.append([layer.name, self.conv2d])
+            elif isinstance(layer, keras.layers.Dense):
+                self.layers.append([layer.name, ("svd", None)])
+
+    def compress_iteration(self):
+        if self.iteration * self.number >= len(self.layers):
+            self.iteration = 0
+            self.layers = []
+
+            for layer in self.model.layers:
+                if isinstance(layer, keras.layers.Conv2D):
+                    self.layers.append([layer.name, self.conv2d])
+                elif isinstance(layer, keras.layers.Dense):
+                    self.layers.append([layer.name, ("svd", None)])
+
+        layers_to_compress = self.layers[self.iteration * self.number:self.iteration * self.number + self.number]
+        self.iteration += 1
+        decompose_info = dict()
+
+        for layer in layers_to_compress:
+            decompose_info[layer[0]] = layer[1]
+
+        self.model = compress_noseq(self.model, decompose_info, optimize_rank=True, vbmf=True,
+                                    vbmf_weaken_factor=self.vbmf_weaken_factor)
+
+        return self.model
+
+    def __len(self):
+        """
+        Number of iterations to iterate trough the whole network.
+
+        :return:
+        """
+        return int(len(np.ceil(len(self.layers) / self.number)))

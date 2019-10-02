@@ -796,12 +796,12 @@ def _demonstration_symmetry_rank():
     o = als_dense(kp, ts, max_cycle=10000, tensor_format="ncpd")
     z5 = ts - ncpd_rebuild(o)
 
-    print("Symm tensor - symm CPD: {}".format(np.linalg.norm(z0.ravel())))
-    print("Symm tensor - symm nCPD: {}".format(np.linalg.norm(z1.ravel())))
-    print("Symm nCPD - optimized original nCPD: {}".format(np.linalg.norm(z2.ravel())))
-    print("Symm tensor - optimized original nCPD: {}".format(np.linalg.norm(z3.ravel())))
-    print("Symm tensor - optimized symm nCPD: {}".format(np.linalg.norm(z4.ravel())))
-    print("Symm tensor - optimized nCPD of lower rank: {}".format(np.linalg.norm(z5.ravel())))
+    # print("Symm tensor - symm CPD: {}".format(np.linalg.norm(z0.ravel())))
+    # print("Symm tensor - symm nCPD: {}".format(np.linalg.norm(z1.ravel())))
+    # print("Symm nCPD - optimized original nCPD: {}".format(np.linalg.norm(z2.ravel())))
+    # print("Symm tensor - optimized original nCPD: {}".format(np.linalg.norm(z3.ravel())))
+    # print("Symm tensor - optimized symm nCPD: {}".format(np.linalg.norm(z4.ravel())))
+    # print("Symm tensor - optimized nCPD of lower rank: {}".format(np.linalg.norm(z5.ravel())))
 
 
 def recompress_ncpd_tensor(tensor_ncpd, new_rank, max_cycle=100, return_fit=True, tensor_format="ncpd"):

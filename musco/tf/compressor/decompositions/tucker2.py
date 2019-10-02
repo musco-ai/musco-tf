@@ -1,10 +1,9 @@
 import numpy as np
 from sktensor import dtensor, tucker
 from tensorflow import keras
-from tensorflow.keras import layers
 from musco.tf.compressor.decompositions.constructor import construct_compressor
 from musco.tf.compressor.rank_selection.estimator import estimate_rank_for_compression_rate, estimate_vbmf_ranks
-from musco.tf.compressor.help.utils import to_tf_kernel_order, to_pytorch_kernel_order
+from musco.tf.compressor.common.utils import to_tf_kernel_order, to_pytorch_kernel_order
 from musco.tf.compressor.exceptions.compression_error import CompressionError
 
 
@@ -36,7 +35,7 @@ def get_conv_params(layer):
         padding = conf_2["padding"]
         strides = conf_2["strides"]
         activation = conf_3["activation"]
-    elif isinstance(layer, layers.Conv2D):
+    elif isinstance(layer, keras.layers.Conv2D):
         cin = layer.input_shape[-1] if layer.data_format == "channels_last" else layer.input_shape[0]
         cout = layer.output_shape[-1] if layer.data_format == "channels_last" else layer.output_shape[0]
         layer_conf = layer.get_config()
@@ -73,7 +72,7 @@ def get_weights_and_bias(layer):
     if isinstance(layer, keras.Sequential):
         weights = layer.layers[1].get_weights()[0]
         bias = layer.layers[-1].get_weights()[-1]
-    elif isinstance(layer, layers.Conv2D):
+    elif isinstance(layer, keras.layers.Conv2D):
         weights, bias = layer.get_weights()
 
     weights = to_pytorch_kernel_order(weights)
@@ -87,7 +86,7 @@ def get_weights_and_bias(layer):
 
 def get_tucker_factors(layer, rank, cin, cout, kernel_size, **kwargs):
     weights, bias = get_weights_and_bias(layer)
-    print("Weights: ", weights.shape, "\nKernel Size: ", kernel_size)
+    # print("Weights: ", weights.shape, "\nKernel Size: ", kernel_size)
     core, (U_cout, U_cin, U_dd) = tucker.hooi(dtensor(weights), [rank[0], rank[1], weights.shape[-1]], init="nvecs")
     core = core.dot(U_dd.T)
     w_cin = np.array(U_cin)
@@ -115,7 +114,7 @@ def get_tucker_factors(layer, rank, cin, cout, kernel_size, **kwargs):
 
 
 def get_layers_params_for_factors(cout, rank, kernel_size, padding, strides, batch_input_shape, activation, **kwargs):
-    new_layers = [layers.Conv2D, layers.Conv2D, layers.Conv2D]
+    new_layers = [keras.layers.Conv2D, keras.layers.Conv2D, keras.layers.Conv2D]
     params = [
         dict(kernel_size=(1, 1), filters=rank[1], padding="same", use_bias=False),
         dict(kernel_size=kernel_size, filters=rank[0], padding=padding, strides=strides, use_bias=False),
@@ -133,7 +132,7 @@ def get_config(layer, copy_conf):
 
     if isinstance(layer, keras.Sequential):
         confs = [l.get_config() for l in layer.layers]
-    elif isinstance(layer, layers.Conv2D):
+    elif isinstance(layer, keras.layers.Conv2D):
         if copy_conf:
             confs = [layer.get_config()] * 3
         else:
@@ -163,4 +162,4 @@ def get_rank(layer, rank, cin, cout, kernel_size, vbmf=False, vbmf_weaken_factor
 
 
 get_tucker2_seq = construct_compressor(get_conv_params, get_rank, get_tucker_factors, get_layers_params_for_factors,
-                                       get_config, (layers.Conv2D, keras.Sequential))
+                                       get_config, (keras.layers.Conv2D, keras.Sequential))
