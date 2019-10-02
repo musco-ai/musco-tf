@@ -6,8 +6,6 @@ import sys
 
 DISTNAME = 'scikit-tensor'
 DESCRIPTION = descr
-with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
-    LONG_DESCRIPTION = f.read()
 MAINTAINER = 'Maximilian Nickel',
 MAINTAINER_EMAIL = 'mnick@mit.edu',
 URL = 'http://github.com/mnick/scikit-tensor'
@@ -81,7 +79,6 @@ def setup_package():
         license=LICENSE,
         url=URL,
         download_url=DOWNLOAD_URL,
-        long_description=LONG_DESCRIPTION,
         version=get_version(),
         install_requires=[
             'numpy',
