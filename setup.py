@@ -22,12 +22,12 @@ def load_requirements(file_name):
 
 setup(
     name="musco-tf",
-    version="1.0.0",
+    version="1.0.1",
     description="MUSCO: Multi-Stage COmpression of neural networks",
     author="Julia Gusak, Maksym Kholiavchenko, Evgeny Ponomarev, Larisa Markeeva, Andrzej Cichocki, Ivan Oseledets",
     author_email="m.kholyavchenko@innopolis.ru",
     url="https://github.com/musco-ai/musco-tf",
-    download_url="https://github.com/musco-ai/musco-tf/archive/1.0.0.tar.gz",
+    download_url="https://github.com/musco-ai/musco-tf/archive/1.0.1.tar.gz",
     license="Apache-2.0",
     packages=find_packages(),
     cmdclass={"install": InstallLocalPackage},
