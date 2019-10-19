@@ -8,12 +8,20 @@ from tensorflow import keras
 from musco.tf.compressor.decompositions.cp3 import get_cp3_seq
 from musco.tf.compressor.decompositions.cp4 import get_cp4_seq
 from musco.tf.compressor.decompositions.svd import get_svd_seq
+from musco.tf.compressor.decompositions.svd_1x1 import get_svd_1x1_seq
 from musco.tf.compressor.decompositions.tucker2 import get_tucker2_seq
 from musco.tf.compressor.exceptions.compression_error import CompressionError
 from tqdm import tqdm
 
 
-def compress_seq(model, decompose_info, optimize_rank=False, vbmf=True, vbmf_weaken_factor=0.8):
+def compress_seq(model,
+                 decompose_info,
+                 optimize_rank=False,
+                 vbmf=True,
+                 vbmf_weaken_factor=0.8,
+                 rank_selection="manual",
+                 param_reduction_rate=None
+                 ):
     """Compresses source model using decompositions from decompose_info dict.
 
     For example if decompose_info = {
@@ -36,6 +44,9 @@ def compress_seq(model, decompose_info, optimize_rank=False, vbmf=True, vbmf_wea
     :param optimize_rank: rank to be optimized
     :param vbmf: use auto rank selection
     :param vbmf_weaken_factor: vbmf weaken factor
+    :param rank_selection: type of rank selection for svd_1x1. Available vaues are 'manual', 'vbmf', 'param_reduction'.
+                           For the last one reduction rate is defined by parameter param_reduction_rate
+    :param param_reduction_rate: reduction rate for rank_selection='param_reduction'
     :return: new tf.keras.Model with compressed layers
     """
 
@@ -70,6 +81,15 @@ def compress_seq(model, decompose_info, optimize_rank=False, vbmf=True, vbmf_wea
                                         optimize_rank=optimize_rank,
                                         vbmf=vbmf,
                                         vbmf_weaken_factor=vbmf_weaken_factor)
+        elif decompose.lower() == "svd_1x1":
+            logging.info("SVD 1x1 layer {}".format(layer.name))
+            new_layer = get_svd_1x1_seq(layer,
+                                        rank=decomp_rank,
+                                        optimize_rank=optimize_rank,
+                                        vbmf_weaken_factor=vbmf_weaken_factor,
+                                        rank_selection=rank_selection,
+                                        param_reduction_rate=param_reduction_rate
+                                        )
         else:
             logging.info("Incorrect decompositions type for the layer {}".format(layer.name))
             raise NameError(
@@ -103,8 +123,9 @@ def insert_layer_noseq(model, layer_regexs):
                 network_dict["input_layers_of"][layer_name].append(layer.name)
 
     # Set the output tensor of the input layer.
-    network_dict["new_output_tensor_of"].update(
-        {model.layers[0].name: model.input})
+    #network_dict["new_output_tensor_of"].update(
+    #    {model.layers[0].name: model.input})
+    network_dict["input_layers_of"][model.layers[0].name] = []
 
     # Iterate over all layers after the input.
     conenctions = dict({model.layers[0].name: (model.layers[0].__class__,
@@ -112,15 +133,19 @@ def insert_layer_noseq(model, layer_regexs):
                                                None)})
     layers_order = [model.layers[0].name]
 
-    for layer in tqdm(model.layers[1:], desc="{Insert layers}"):
+    for layer in tqdm(model.layers, desc="{Insert layers}"):
+        print("Woring on layer " + layer.name)
         added_layer = None
 
         # Determine input tensors.
         layer_input = [network_dict["new_output_tensor_of"][layer_aux]
                        for layer_aux in network_dict["input_layers_of"][layer.name]]
+        if (len(layer_input) == 0):
+            layer_input = [model.input]
 
         if len(layer_input) == 1:
             layer_input = layer_input[0]
+        print("Layer input: " + str(layer_input))
 
         # Insert layer if name matches the regular expression.
         changed = False
@@ -175,7 +200,13 @@ def insert_layer_noseq(model, layer_regexs):
     return new_model
 
 
-def compress_noseq(model, decompose_info, optimize_rank=False, vbmf=True, vbmf_weaken_factor=0.8):
+def compress_noseq(model,
+                   decompose_info,
+                   optimize_rank=False,
+                   vbmf=True,
+                   vbmf_weaken_factor=0.8,
+                   rank_selection="manual",
+                   param_reduction_rate=None):
     new_model = model
     layer_regexs = dict()
 
@@ -202,6 +233,14 @@ def compress_noseq(model, decompose_info, optimize_rank=False, vbmf=True, vbmf_w
                                                            optimize_rank=optimize_rank,
                                                            vbmf=vbmf,
                                                            vbmf_weaken_factor=vbmf_weaken_factor)
+            elif decompose.lower() == "svd_1x1":
+                layer_regexs[layer.name] = get_svd_1x1_seq(layer,
+                                                           rank=decomp_rank,
+                                                           optimize_rank=optimize_rank,
+                                                           vbmf_weaken_factor=vbmf_weaken_factor,
+                                                           rank_selection=rank_selection,
+                                                           param_reduction_rate=param_reduction_rate
+                                                           )
         except ValueError:
             continue
 
