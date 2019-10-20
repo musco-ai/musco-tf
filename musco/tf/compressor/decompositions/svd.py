@@ -59,16 +59,15 @@ def get_config(layer, copy_conf):
     redundant_keys = {"units", "kernel_initializer", "bias_initializer", "name"}
 
     if isinstance(layer, keras.Sequential):
-        for l in layer.layers:
-            confs.append(del_keys(l.get_config(), redundant_keys))
+        confs = [l.get_config() for l in layer.layers]
     elif isinstance(layer, keras.layers.Dense):
         # Get conf of the source layer.
-        conf = {} if not copy_conf else del_keys(layer.get_config(), redundant_keys)
+        conf = {} if not copy_conf else layer.get_config()
 
         # Source layer is decomposed into 3, that's why we need 3 confs here.
         confs = [conf] * 3
 
-    return confs
+    return [del_keys(conf, redundant_keys)for conf in confs]
 
 
 get_svd_seq = construct_compressor(get_params, None, get_svd_factors, get_layers_params_for_factors, get_config,

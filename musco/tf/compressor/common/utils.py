@@ -13,7 +13,7 @@ def to_tf_kernel_order(tensor):
 
     :param tensor: tensor with conv.kernel weights.
     :return: tensor with the Tensoflow-like exis order.
-    []
+    [out_channels, in_channels, filter_height, filter_width] -> [filter_height, filter_width, in_channels, out_channels]
     """
 
     return np.transpose(tensor, (2, 3, 1, 0))
@@ -24,7 +24,7 @@ def to_pytorch_kernel_order(tensor):
 
     :param tensor: tensor with conv.kernel weights.
     :return: tensor with the Pytorch-like exis order.
-    []
+    [filter_height, filter_width, in_channels, out_channels] -> [out_channels, in_channels, filter_height, filter_width]
     """
 
     return np.transpose(tensor, (3, 2, 0, 1))

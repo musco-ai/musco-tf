@@ -123,9 +123,8 @@ def insert_layer_noseq(model, layer_regexs):
                 network_dict["input_layers_of"][layer_name].append(layer.name)
 
     # Set the output tensor of the input layer.
-    #network_dict["new_output_tensor_of"].update(
-    #    {model.layers[0].name: model.input})
-    network_dict["input_layers_of"][model.layers[0].name] = []
+    network_dict["new_output_tensor_of"].update(
+        {model.layers[0].name: model.input})
 
     # Iterate over all layers after the input.
     conenctions = dict({model.layers[0].name: (model.layers[0].__class__,
@@ -133,15 +132,13 @@ def insert_layer_noseq(model, layer_regexs):
                                                None)})
     layers_order = [model.layers[0].name]
 
-    for layer in tqdm(model.layers, desc="{Insert layers}"):
+    for layer in tqdm(model.layers[1:], desc="{Insert layers}"):
         print("Woring on layer " + layer.name)
         added_layer = None
 
         # Determine input tensors.
         layer_input = [network_dict["new_output_tensor_of"][layer_aux]
                        for layer_aux in network_dict["input_layers_of"][layer.name]]
-        if (len(layer_input) == 0):
-            layer_input = [model.input]
 
         if len(layer_input) == 1:
             layer_input = layer_input[0]
