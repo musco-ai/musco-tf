@@ -7,7 +7,8 @@ It demonstrates how a neural network with convolutional and fully connected laye
 ```
 numpy
 scipy
-tensorly
+scikit-tensor-py3
+tensorly-musco
 absl-py
 tqdm
 tensorflow-gpu (TensorRT support)

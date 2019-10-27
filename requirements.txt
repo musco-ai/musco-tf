@@ -1,5 +1,6 @@
 numpy
 scipy
-tensorly
+scikit-tensor-py3
+tensorly-musco
 absl-py
 tqdm
